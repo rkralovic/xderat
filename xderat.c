@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <X11/extensions/Xinerama.h>
 #include <X11/extensions/shape.h>
+#include <X11/extensions/Xinerama.h>
+#include <X11/extensions/XTest.h>
 #include <X11/Xlib.h>
 
 #define LOG(x...) fprintf(stderr, x...)
@@ -186,8 +187,8 @@ void InitWindows() {
   for (i = 0; i < LABEL_LEN; ++i) label[i] = 'X';
   label[LABEL_LEN] = 0;
   XTextExtents(font, label, LABEL_LEN, &dir, &asc, &desc, &overall);
-  x_delta = overall.rbearing - overall.lbearing + 6;
-  y_delta = overall.ascent - overall.descent + 6;
+  x_delta = overall.rbearing - overall.lbearing + 10;
+  y_delta = overall.ascent - overall.descent + 10;
 
   labels = (struct screen_labels*)malloc(
       sizeof(struct screen_labels) * num_screens);
@@ -258,7 +259,7 @@ void InitState(int s) {
   done = 0;
 }
 
-void HandleKey(int s, XKeyEvent* ev) {
+void HandleKeyPress(int s, XKeyEvent* ev) {
   int l = 1;
   if (ev->state & ShiftMask) l = 6;
 
@@ -283,6 +284,15 @@ void HandleKey(int s, XKeyEvent* ev) {
       case XK_m:
         XMapWindow(dpy, labels[s].win);
         pfx_idx = 0;
+        break;
+      case XK_c:
+        XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
+        break;
+      case XK_r:
+        XTestFakeButtonEvent(dpy, 2, True, CurrentTime);
+        break;
+      case XK_e:
+        XTestFakeButtonEvent(dpy, 3, True, CurrentTime);
         break;
     }
   } else {
@@ -333,6 +343,22 @@ void HandleKey(int s, XKeyEvent* ev) {
   }
 }
 
+void HandleKeyRelease(int s, XKeyEvent* ev) {
+  if (pfx_idx == -1) {
+    switch (XLookupKeysym(ev, 0)) {
+      case XK_c:
+        XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
+        break;
+      case XK_r:
+        XTestFakeButtonEvent(dpy, 2, False, CurrentTime);
+        break;
+      case XK_e:
+        XTestFakeButtonEvent(dpy, 3, False, CurrentTime);
+        break;
+    }
+  }
+}
+
 int main() {
   int s;
   Window inp;
@@ -364,7 +390,9 @@ int main() {
                           labels[s].shape, ShapeSet);
         break;
       case KeyPress:
-        HandleKey(s, &ev.xkey);
+        HandleKeyPress(s, &ev.xkey);
+      case KeyRelease:
+        HandleKeyRelease(s, &ev.xkey);
         break;
     }
   }
