@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <X11/extensions/Xinerama.h>
 #include <X11/extensions/shape.h>
 #include <X11/Xlib.h>
@@ -246,26 +247,114 @@ int FindScreen() {
   return 0;
 }
 
+//
+char pfx[LABEL_LEN + 1];
+int pfx_idx;
+int done;
+
+void InitState(int s) {
+  XMapWindow(dpy, labels[s].win);
+  pfx_idx = 0;
+  done = 0;
+}
+
+void HandleKey(int s, XKeyEvent* ev) {
+  int l = 1;
+  if (ev->state & ShiftMask) l = 6;
+
+  if (pfx_idx == -1) {
+    switch (XLookupKeysym(ev, 0)) {
+      case XK_h:
+        XWarpPointer(dpy, None, None, 0, 0, 0, 0, -l, 0);
+        break;
+      case XK_j:
+        XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, l+1);
+        break;
+      case XK_k:
+        XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, -l);
+        break;
+      case XK_l:
+        XWarpPointer(dpy, None, None, 0, 0, 0, 0, l+1, 0);
+        break;
+      case XK_q:
+      case XK_Return:
+        done = 1;
+        break;
+      case XK_m:
+        XMapWindow(dpy, labels[s].win);
+        pfx_idx = 0;
+        break;
+    }
+  } else {
+    char c;
+    switch (XLookupKeysym(ev, 0)) {
+      case XK_q:         c = 'q'; break;
+      case XK_w:         c = 'w'; break;
+      case XK_e:         c = 'e'; break;
+      case XK_r:         c = 'r'; break;
+      case XK_a:         c = 'a'; break;
+      case XK_s:         c = 's'; break;
+      case XK_d:         c = 'd'; break;
+      case XK_f:         c = 'f'; break;
+      case XK_z:         c = 'z'; break;
+      case XK_x:         c = 'x'; break;
+      case XK_c:         c = 'c'; break;
+      case XK_v:         c = 'v'; break;
+      case XK_u:         c = 'u'; break;
+      case XK_i:         c = 'i'; break;
+      case XK_o:         c = 'o'; break;
+      case XK_p:         c = 'p'; break;
+      case XK_j:         c = 'j'; break;
+      case XK_k:         c = 'k'; break;
+      case XK_l:         c = 'l'; break;
+      case XK_semicolon: c = ';'; break;
+      case XK_m:         c = 'm'; break;
+      case XK_comma:     c = ','; break;
+      case XK_period:    c = '.'; break;
+      case XK_slash:     c = '/'; break;
+      default: return;
+    }
+    pfx[pfx_idx++] = c;
+    if (pfx_idx == LABEL_LEN) {
+      int x, y, i;
+      x = y = 0;
+      for (i = 0; i < labels[s].num_labels; ++i) {
+        if (strcmp(labels[s].labels[i].str, pfx) == 0) {
+          x = (labels[s].labels[i].x1 + labels[s].labels[i].x2) / 2;
+          y = (labels[s].labels[i].y1 + labels[s].labels[i].y2) / 2;
+          break;
+        }
+      }
+
+      pfx_idx = -1;
+      XWarpPointer(dpy, None, labels[s].win, 0, 0, 0, 0, x, y);
+      XUnmapWindow(dpy, labels[s].win);
+    }
+  }
+}
+
 int main() {
-  int s, done;
+  int s;
   Window inp;
 
   Init();
   InitWindows();
+
   s = FindScreen();
   inp = UnmanagedWindow(s, 0, 0, 1, 1);
-  done = 0;
 
   XSelectInput(dpy, inp, KeyPressMask);
   XSelectInput(dpy, labels[s].win, ExposureMask);
   XMapWindow(dpy, inp);
 
-  XGrabKeyboard(dpy, inp, False, GrabModeAsync, GrabModeAsync, CurrentTime);
+  InitState(s);
+
+  while (XGrabKeyboard(dpy, inp, False, GrabModeAsync, GrabModeAsync, CurrentTime)) {
+    usleep(10000);
+  }
 
   while (!done) {
     XEvent ev;
-    int l;
-
     XNextEvent(dpy, &ev);
     switch (ev.type) {
       case Expose:
@@ -275,32 +364,11 @@ int main() {
                           labels[s].shape, ShapeSet);
         break;
       case KeyPress:
-        l = 1;
-        if (ev.xkey.state & ShiftMask) l = 6;
-        switch (XLookupKeysym(&ev.xkey, 0)) {
-          case XK_h:
-            XWarpPointer(dpy, None, None, 0, 0, 0, 0, -l, 0);
-            break;
-          case XK_j:
-            XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, l+1);
-            break;
-          case XK_k:
-            XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, -l);
-            break;
-          case XK_l:
-            XWarpPointer(dpy, None, None, 0, 0, 0, 0, l+1, 0);
-            break;
-          case XK_q:
-            done = 1;
-            break;
-          case XK_m:
-            XMapWindow(dpy, labels[s].win);
-            break;
-        }
+        HandleKey(s, &ev.xkey);
         break;
     }
   }
-  XAllowEvents(dpy, AsyncKeyboard, CurrentTime);
+  XUngrabKeyboard(dpy, CurrentTime);
   
   DoneWindows();
   Done();
