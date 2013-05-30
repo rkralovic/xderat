@@ -17,7 +17,7 @@ XFontStruct* font;
 Font font_id;
 
 const char* font_name = "terminus-14";
-#define LABEL_LEN 4
+#define LABEL_LEN 3
 
 // private
 int screens_x_allocated;
@@ -66,6 +66,55 @@ void Done() {
     free(screens);
   }
   XCloseDisplay(dpy);
+}
+
+// 2 hands, 3 rows, 4 columns
+const char Keys[24] = "qwerasdfzxcvuiopjkl;m,./";
+int InvKeys[256];
+
+void InitKeys() {
+  int i;
+  for (i = 0; i < 256; ++i) InvKeys[i] = -1;
+  for (i = 0; i < 24; ++i) InvKeys[Keys[i]] = i;
+}
+
+void DecodeKey(char a, int *hand, int *row, int *col) {
+  int i = InvKeys[a];
+  if (i < 0) return;
+  *hand = i / 12;
+  i = i % 12;
+  *row = i / 4;
+  *col = i % 4;
+}
+
+int ValidTransition(char a, char b) {
+  if (InvKeys[a] < 0 || InvKeys[b] < 0) return 0;
+  int h1, r1, c1, h2, r2, c2;
+  DecodeKey(a, &h1, &r1, &c1);
+  DecodeKey(b, &h2, &r2, &c2);
+  if (h1 != h2) return 1;
+  if (r1 == r2) return 1;
+  return 0;
+}
+
+void GenLabel(int idx, char *str) {
+  static const int BASE = 16;  // number of valid transitions
+  char last = 'm';
+  int tmp[LABEL_LEN], i, j;
+
+  for (i = LABEL_LEN - 1; i >=0; --i) {
+    tmp[i] = idx % BASE;
+    idx /= BASE;
+  }
+  str[LABEL_LEN] = 0;
+  for (i = 0; i < LABEL_LEN; ++i) {
+    for (j = 0; j < 24; ++j) {
+      if (ValidTransition(last, Keys[j])) --tmp[i];
+      if (tmp[i] < 0) break;
+    }
+    if (j == 24) { fprintf(stderr, "Internal error\n"); exit(1); }
+    last = str[i] = Keys[j];
+  }
 }
 
 // Create new unmanaged window:
@@ -121,7 +170,6 @@ void MakeTextLabel(int s, int idx, int x, int y) {
   labels[s].labels[idx].x2 = x + w;
   labels[s].labels[idx].y2 = y + w;
 
-        printf("here %d %d %d %d\n", s, idx, x, y);
   XSetForeground(dpy, labels[s].shape_gc, 1);
   XFillRectangle(dpy, labels[s].shape, labels[s].shape_gc, x, y, w, h);
 }
@@ -133,6 +181,7 @@ void InitWindows() {
   XCharStruct overall;
   char label[LABEL_LEN + 1];
 
+  InitKeys();
   for (i = 0; i < LABEL_LEN; ++i) label[i] = 'X';
   label[LABEL_LEN] = 0;
   XTextExtents(font, label, LABEL_LEN, &dir, &asc, &desc, &overall);
@@ -161,9 +210,9 @@ void InitWindows() {
     for (j = 0; j < x; ++j) {
       for (k = 0; k < y; ++k) {
         int idx = k * x + j;
-        strcpy(labels[i].labels[idx].str, "XXXX");
+        GenLabel(idx, labels[i].labels[idx].str);
         MakeTextLabel(i, idx,
-                      x_delta / 2 + x_delta * j, y_delta / 2 + y_delta * k);;
+                      x_delta / 2 + x_delta * j, y_delta / 2 + y_delta * k);
       }
     }
   }
@@ -180,8 +229,6 @@ void DoneWindows() {
     XDestroyWindow(dpy, labels[i].win);
   }
 }
-
-const char Keys[] = "";
 
 int main() {
   Init();
