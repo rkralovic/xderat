@@ -75,11 +75,11 @@ int InvKeys[256];
 void InitKeys() {
   int i;
   for (i = 0; i < 256; ++i) InvKeys[i] = -1;
-  for (i = 0; i < 24; ++i) InvKeys[Keys[i]] = i;
+  for (i = 0; i < 24; ++i) InvKeys[(int)Keys[i]] = i;
 }
 
 void DecodeKey(char a, int *hand, int *row, int *col) {
-  int i = InvKeys[a];
+  int i = InvKeys[(int)a];
   if (i < 0) return;
   *hand = i / 12;
   i = i % 12;
@@ -88,7 +88,7 @@ void DecodeKey(char a, int *hand, int *row, int *col) {
 }
 
 int ValidTransition(char a, char b) {
-  if (InvKeys[a] < 0 || InvKeys[b] < 0) return 0;
+  if (InvKeys[(int)a] < 0 || InvKeys[(int)b] < 0) return 0;
   int h1, r1, c1, h2, r2, c2;
   DecodeKey(a, &h1, &r1, &c1);
   DecodeKey(b, &h2, &r2, &c2);
@@ -230,35 +230,78 @@ void DoneWindows() {
   }
 }
 
+int FindScreen() {
+  Window root, child;
+  int i, x, y, wx, wy;
+  unsigned int mask;
+  for (i = 0; i < num_screens; ++i) {
+    if (XQueryPointer(dpy, XRootWindow(dpy, screens[i].screen_number),
+                      &root, &child, &x, &y, &wx, &wy, &mask)) {
+      if (x >= screens[i].x_org && x < screens[i].x_org + screens[i].width &&
+          y >= screens[i].y_org && y < screens[i].y_org + screens[i].height) {
+        return i;
+      }
+    }
+  }
+  return 0;
+}
+
 int main() {
+  int s, done;
+  Window inp;
+
   Init();
-
-  {
-    int i;
-    for (i = 0; i < num_screens; ++i) {
-      printf("screen %d: [%d, %d], [%d, %d]\n",
-             screens[i].screen_number, screens[i].x_org, screens[i].y_org,
-             screens[i].width, screens[i].height);
-    }
-  }
-
   InitWindows();
+  s = FindScreen();
+  inp = UnmanagedWindow(s, 0, 0, 1, 1);
+  done = 0;
 
-  {
-    int x;
-    scanf("%d", &x);
-    for (x = 0; x < num_screens; ++x) {
-      XMapWindow(dpy, labels[x].win);
-      XCopyArea(dpy, labels[x].ctx, labels[x].win, labels[x].win_gc,
-                0, 0, screens[x].width, screens[x].height, 0, 0);
-      XShapeCombineMask(dpy, labels[x].win, ShapeBounding, 0, 0,
-                        labels[x].shape, ShapeSet);
+  XSelectInput(dpy, inp, KeyPressMask);
+  XSelectInput(dpy, labels[s].win, ExposureMask);
+  XMapWindow(dpy, inp);
+
+  XGrabKeyboard(dpy, inp, False, GrabModeAsync, GrabModeAsync, CurrentTime);
+
+  while (!done) {
+    XEvent ev;
+    int l;
+
+    XNextEvent(dpy, &ev);
+    switch (ev.type) {
+      case Expose:
+        XCopyArea(dpy, labels[s].ctx, labels[s].win, labels[s].win_gc,
+                  0, 0, screens[s].width, screens[s].height, 0, 0);
+        XShapeCombineMask(dpy, labels[s].win, ShapeBounding, 0, 0,
+                          labels[s].shape, ShapeSet);
+        break;
+      case KeyPress:
+        l = 1;
+        if (ev.xkey.state & ShiftMask) l = 6;
+        switch (XLookupKeysym(&ev.xkey, 0)) {
+          case XK_h:
+            XWarpPointer(dpy, None, None, 0, 0, 0, 0, -l, 0);
+            break;
+          case XK_j:
+            XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, l+1);
+            break;
+          case XK_k:
+            XWarpPointer(dpy, None, None, 0, 0, 0, 0, 0, -l);
+            break;
+          case XK_l:
+            XWarpPointer(dpy, None, None, 0, 0, 0, 0, l+1, 0);
+            break;
+          case XK_q:
+            done = 1;
+            break;
+          case XK_m:
+            XMapWindow(dpy, labels[s].win);
+            break;
+        }
+        break;
     }
-
-    XSync(dpy, False);
-    scanf("%d", &x);
   }
-
+  XAllowEvents(dpy, AsyncKeyboard, CurrentTime);
+  
   DoneWindows();
   Done();
   return 0;
