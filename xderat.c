@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <X11/extensions/Xinerama.h>
+#include <X11/extensions/shape.h>
 #include <X11/Xlib.h>
 
 #define LOG(x...) fprintf(stderr, x...)
@@ -15,12 +16,6 @@ int num_screens;
 XFontStruct* font;
 Font font_id;
 
-GC TextGC[1];
-GC BarGC;
-int NumTextGC() {
-  return sizeof(TextGC) / sizeof(GC);
-}
-
 const char* font_name = "terminus-14";
 #define LABEL_LEN 4
 
@@ -29,9 +24,6 @@ int screens_x_allocated;
 
 // methods
 void Init() {
-  XGCValues gc_val;
-  unsigned long gc_mask;
-
   dpy = XOpenDisplay(NULL);
   if (dpy == NULL) {
     fprintf(stderr, "Can not open display!\n");
@@ -63,21 +55,9 @@ void Init() {
     exit(1);
   }
   font_id = XLoadFont(dpy, font_name);
-
-  gc_mask = GCForeground | GCBackground | GCFont;
-  gc_val.foreground = XWhitePixel(dpy, XDefaultScreen(dpy));
-  gc_val.background = XBlackPixel(dpy, XDefaultScreen(dpy));
-  gc_val.font = font_id;
-  TextGC[0] = XCreateGC(dpy, XDefaultRootWindow(dpy), gc_mask, &gc_val);
-  BarGC = XCreateGC(dpy, XDefaultRootWindow(dpy), gc_mask, &gc_val);
 }
 
 void Done() {
-  int i;
-  XFreeGC(dpy, BarGC);
-  for (i = 0; i < NumTextGC(); ++i) {
-    XFreeGC(dpy, TextGC[i]);
-  }
   XFree(font);
   XUnloadFont(dpy, font_id);
   if (screens_x_allocated) {
@@ -103,69 +83,103 @@ Window UnmanagedWindow(int s, int x, int y, int w, int h) {
                        valuemask, &attr);
 }
 
-Window TextWindow(int s, int x, int y, int gc, char* text) {
-  static const int border = 2;
+struct label {
+  int x1, y1, x2, y2;
+  char str[LABEL_LEN + 1];
+};
+
+struct screen_labels {
   Window win;
+  Pixmap ctx, shape;
+  GC win_gc, shape_gc;
+  struct label* labels;
+  int num_labels;
+} *labels;
+
+void MakeTextLabel(int s, int idx, int x, int y) {
+  static const int border = 2;
   int dir, asc, desc, w, h;
   XCharStruct overall;
-  XGCValues gc_val;
+  char* text = labels[s].labels[idx].str;
 
   XTextExtents(font, text, strlen(text), &dir, &asc, &desc, &overall);
   w = overall.rbearing - overall.lbearing + 2*border;
   h = overall.ascent + overall.descent + 2*border;
 
-  win = UnmanagedWindow(s, x - w / 2, y - h / 2, w, h);
+  x -= w / 2;
+  y -= h / 2;
 
-  XGetGCValues(dpy, TextGC[gc], GCBackground, &gc_val);
-  XSetWindowBackground(dpy, win, gc_val.background);
-
-  XMapRaised(dpy, win);
-
-  XDrawImageString(dpy, win, TextGC[gc],
-                   border - overall.lbearing, border + overall.ascent,
+  XSetForeground(dpy, labels[s].win_gc, XWhitePixel(dpy, screens[s].screen_number));
+  XSetBackground(dpy, labels[s].win_gc, XBlackPixel(dpy, screens[s].screen_number));
+  XSetFont(dpy, labels[s].win_gc, font_id);
+  XDrawImageString(dpy, labels[s].ctx, labels[s].win_gc,
+                   x + border - overall.lbearing, y + border + overall.ascent,
                    text, strlen(text));
 
-  return win;
+  labels[s].labels[idx].x1 = x;
+  labels[s].labels[idx].y1 = y;
+  labels[s].labels[idx].x2 = x + w;
+  labels[s].labels[idx].y2 = y + w;
+
+        printf("here %d %d %d %d\n", s, idx, x, y);
+  XSetForeground(dpy, labels[s].shape_gc, 1);
+  XFillRectangle(dpy, labels[s].shape, labels[s].shape_gc, x, y, w, h);
 }
 
-void Sort2(int* a, int* b) {
-  if (*a > *b) {
-    int c = *a;
-    *a = *b;
-    *b = c;
+void InitWindows() {
+  int i, j, k;
+  int dir, asc, desc;
+  int x_delta, y_delta;
+  XCharStruct overall;
+  char label[LABEL_LEN + 1];
+
+  for (i = 0; i < LABEL_LEN; ++i) label[i] = 'X';
+  label[LABEL_LEN] = 0;
+  XTextExtents(font, label, LABEL_LEN, &dir, &asc, &desc, &overall);
+  x_delta = overall.rbearing - overall.lbearing + 6;
+  y_delta = overall.ascent - overall.descent + 6;
+
+  labels = (struct screen_labels*)malloc(
+      sizeof(struct screen_labels) * num_screens);
+  for (i = 0; i < num_screens; ++i) {
+    int x = screens[i].width / x_delta;
+    int y = screens[i].height / y_delta;
+    labels[i].win = UnmanagedWindow(i, 0, 0,
+                                    screens[i].width, screens[i].height);
+    labels[i].ctx = XCreatePixmap(dpy, labels[i].win,
+                                  screens[i].width, screens[i].height,
+                                  XDefaultDepth(dpy, screens[i].screen_number));
+    labels[i].shape = XCreatePixmap(dpy, labels[i].win,
+                                    screens[i].width, screens[i].height, 1);
+    labels[i].win_gc = XCreateGC(dpy, labels[i].ctx, 0, NULL);
+    labels[i].shape_gc = XCreateGC(dpy, labels[i].shape, 0, NULL);
+    XSetForeground(dpy, labels[i].shape_gc, 0);
+    XFillRectangle(dpy, labels[i].shape, labels[i].shape_gc, 0, 0,
+                   screens[i].width, screens[i].height);
+    labels[i].num_labels = x * y;
+    labels[i].labels = (struct label*)malloc(sizeof(struct label) * x * y);
+    for (j = 0; j < x; ++j) {
+      for (k = 0; k < y; ++k) {
+        int idx = k * x + j;
+        strcpy(labels[i].labels[idx].str, "XXXX");
+        MakeTextLabel(i, idx,
+                      x_delta / 2 + x_delta * j, y_delta / 2 + y_delta * k);;
+      }
+    }
   }
 }
 
-Window BarWindow(int s, int x1, int y1, int x2, int y2) {
-  static const int border = 1;
-  Window win;
-  XGCValues gc_val;
-
-  Sort2(&x1, &x2);
-  Sort2(&y1, &y2);
-  win = UnmanagedWindow(s, x1 - border, y1 - border,
-                        x2 - x1 + 1 + 2*border, y2 - y1 + 1 + 2*border);
-
-  XGetGCValues(dpy, BarGC, GCBackground, &gc_val);
-  XSetWindowBackground(dpy, win, gc_val.background);
-
-  XMapRaised(dpy, win);
-
-  XFillRectangle(dpy, win, BarGC, border, border, x2 - x1 + 1, y2 - y1 + 1);
-
-  return win;
+void DoneWindows() {
+  int i;
+  for (i = 0; i < num_screens; ++i) {
+    free(labels[i].labels);
+    XFreeGC(dpy, labels[i].win_gc);
+    XFreeGC(dpy, labels[i].shape_gc);
+    XFreePixmap(dpy, labels[i].ctx);
+    XFreePixmap(dpy, labels[i].shape);
+    XDestroyWindow(dpy, labels[i].win);
+  }
 }
-
-struct label_win {
-  Window win;
-  char label[LABEL_LEN + 1];
-  int mapped;
-};
-
-struct screen_labels {
-  struct label_win* labels;
-  int num_labels;
-} *labels;
 
 const char Keys[] = "";
 
@@ -181,69 +195,24 @@ int main() {
     }
   }
 
+  InitWindows();
+
   {
     int x;
     scanf("%d", &x);
-  }
-
-  {
-    int i, j, k;
-    int dir, asc, desc;
-    int x_delta, y_delta;
-    XCharStruct overall;
-    char label[LABEL_LEN + 1];
-
-    for (i = 0; i < LABEL_LEN; ++i) label[i] = 'X';
-    label[LABEL_LEN] = 0;
-    XTextExtents(font, label, LABEL_LEN, &dir, &asc, &desc, &overall);
-    x_delta = overall.rbearing - overall.lbearing + 6;
-    y_delta = overall.ascent - overall.descent + 6;
-
-    labels = (struct screen_labels*)malloc(
-        sizeof(struct screen_labels) * num_screens);
-    for (i = 0; i < num_screens; ++i) {
-      int x = screens[i].width / x_delta;
-      int y = screens[i].height / y_delta;
-      labels[i].num_labels = x * y;
-      labels[i].labels = (struct label_win *)malloc(
-          sizeof(struct label_win) * x * y);
-      for (j = 0; j < x; ++j) {
-        for (k = 0; k < y; ++k) {
-          int idx = k * x + j;
-          strcpy(labels[i].labels[idx].label, "XXXX");
-          labels[i].labels[idx].win =
-            TextWindow(i, x_delta / 2 + x_delta * j, y_delta / 2 + y_delta * k,
-                       0, labels[i].labels[idx].label);
-        }
-      }
-
+    for (x = 0; x < num_screens; ++x) {
+      XMapWindow(dpy, labels[x].win);
+      XCopyArea(dpy, labels[x].ctx, labels[x].win, labels[x].win_gc,
+                0, 0, screens[x].width, screens[x].height, 0, 0);
+      XShapeCombineMask(dpy, labels[x].win, ShapeBounding, 0, 0,
+                        labels[x].shape, ShapeSet);
     }
-  }
-  
-  {
-    /*
-    int i, j;
-    Window w[16][16];
-    Window w2[2][16];
-    for (i = 0; i < 16; ++i) {
-        w2[0][1] = BarWindow(0, 35 + 50 * i, 30, 35 + 50 * i, 350);
-      for (j = 0; j < 16; ++j) {
-        w[i][j] = TextWindow(0, 10 + 50*i, 40 + 20 * j, 0, "ab");
-      }
-    }
-    */
+
     XSync(dpy, False);
-    int x;
     scanf("%d", &x);
   }
 
-  {
-    int i;
-    for (i = 0; i < num_screens; ++i) {
-      free(labels[i].labels);
-    }
-    free(labels);
-  }
+  DoneWindows();
   Done();
   return 0;
 }
