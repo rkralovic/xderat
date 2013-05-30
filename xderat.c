@@ -259,7 +259,7 @@ void InitState(int s) {
   done = 0;
 }
 
-void HandleKeyPress(int s, XKeyEvent* ev) {
+int HandleKeyPress(int s, XKeyEvent* ev) {
   int l = 1;
   if (ev->state & ShiftMask) l = 6;
 
@@ -288,12 +288,14 @@ void HandleKeyPress(int s, XKeyEvent* ev) {
       case XK_c:
         XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
         break;
-      case XK_r:
+      case XK_e:
         XTestFakeButtonEvent(dpy, 2, True, CurrentTime);
         break;
-      case XK_e:
+      case XK_r:
         XTestFakeButtonEvent(dpy, 3, True, CurrentTime);
         break;
+      default:
+        return 0;
     }
   } else {
     char c;
@@ -322,7 +324,7 @@ void HandleKeyPress(int s, XKeyEvent* ev) {
       case XK_comma:     c = ','; break;
       case XK_period:    c = '.'; break;
       case XK_slash:     c = '/'; break;
-      default: return;
+      default: return 0;
     }
     pfx[pfx_idx++] = c;
     if (pfx_idx == LABEL_LEN) {
@@ -341,22 +343,63 @@ void HandleKeyPress(int s, XKeyEvent* ev) {
       XUnmapWindow(dpy, labels[s].win);
     }
   }
+  return 1;
 }
 
-void HandleKeyRelease(int s, XKeyEvent* ev) {
+int HandleKeyRelease(int s, XKeyEvent* ev) {
   if (pfx_idx == -1) {
     switch (XLookupKeysym(ev, 0)) {
+      case XK_h:
+      case XK_j:
+      case XK_k:
+      case XK_l:
+      case XK_q:
+      case XK_Return:
+      case XK_m:
+        break;
       case XK_c:
         XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
         break;
-      case XK_r:
+      case XK_e:
         XTestFakeButtonEvent(dpy, 2, False, CurrentTime);
         break;
-      case XK_e:
+      case XK_r:
         XTestFakeButtonEvent(dpy, 3, False, CurrentTime);
         break;
+      default:
+        return 0;
+    }
+  } else {
+    switch (XLookupKeysym(ev, 0)) {
+      case XK_q:
+      case XK_w:
+      case XK_e:
+      case XK_r:
+      case XK_a:
+      case XK_s:
+      case XK_d:
+      case XK_f:
+      case XK_z:
+      case XK_x:
+      case XK_c:
+      case XK_v:
+      case XK_u:
+      case XK_i:
+      case XK_o:
+      case XK_p:
+      case XK_j:
+      case XK_k:
+      case XK_l:
+      case XK_semicolon:
+      case XK_m:
+      case XK_comma:
+      case XK_period:
+      case XK_slash:
+        break;
+      default: return 0;
     }
   }
+  return 1;
 }
 
 int main() {
@@ -382,22 +425,32 @@ int main() {
   while (!done) {
     XEvent ev;
     XNextEvent(dpy, &ev);
+    int handled = 0;
     switch (ev.type) {
       case Expose:
         XCopyArea(dpy, labels[s].ctx, labels[s].win, labels[s].win_gc,
                   0, 0, screens[s].width, screens[s].height, 0, 0);
         XShapeCombineMask(dpy, labels[s].win, ShapeBounding, 0, 0,
                           labels[s].shape, ShapeSet);
+        handled = 1;
         break;
       case KeyPress:
-        HandleKeyPress(s, &ev.xkey);
-      case KeyRelease:
-        HandleKeyRelease(s, &ev.xkey);
+        handled = HandleKeyPress(s, &ev.xkey); 
         break;
+      case KeyRelease:
+        handled = HandleKeyRelease(s, &ev.xkey);
+        break;
+    }
+    if (!handled) {
+      /*
+      printf("allow event\n");
+      XAllowEvents(dpy, ReplayKeyboard, ev.xkey.time);
+      XFlush(dpy);
+      */
     }
   }
   XUngrabKeyboard(dpy, CurrentTime);
-  
+
   DoneWindows();
   Done();
   return 0;
