@@ -21,7 +21,8 @@ int NumTextGC() {
   return sizeof(TextGC) / sizeof(GC);
 }
 
-const char* font_name="terminus-14";
+const char* font_name = "terminus-14";
+#define LABEL_LEN 4
 
 // private
 int screens_x_allocated;
@@ -155,7 +156,18 @@ Window BarWindow(int s, int x1, int y1, int x2, int y2) {
   return win;
 }
 
+struct label_win {
+  Window win;
+  char label[LABEL_LEN + 1];
+  int mapped;
+};
 
+struct screen_labels {
+  struct label_win* labels;
+  int num_labels;
+} *labels;
+
+const char Keys[] = "";
 
 int main() {
   Init();
@@ -173,7 +185,43 @@ int main() {
     int x;
     scanf("%d", &x);
   }
+
   {
+    int i, j, k;
+    int dir, asc, desc;
+    int x_delta, y_delta;
+    XCharStruct overall;
+    char label[LABEL_LEN + 1];
+
+    for (i = 0; i < LABEL_LEN; ++i) label[i] = 'X';
+    label[LABEL_LEN] = 0;
+    XTextExtents(font, label, LABEL_LEN, &dir, &asc, &desc, &overall);
+    x_delta = overall.rbearing - overall.lbearing + 6;
+    y_delta = overall.ascent - overall.descent + 6;
+
+    labels = (struct screen_labels*)malloc(
+        sizeof(struct screen_labels) * num_screens);
+    for (i = 0; i < num_screens; ++i) {
+      int x = screens[i].width / x_delta;
+      int y = screens[i].height / y_delta;
+      labels[i].num_labels = x * y;
+      labels[i].labels = (struct label_win *)malloc(
+          sizeof(struct label_win) * x * y);
+      for (j = 0; j < x; ++j) {
+        for (k = 0; k < y; ++k) {
+          int idx = k * x + j;
+          strcpy(labels[i].labels[idx].label, "XXXX");
+          labels[i].labels[idx].win =
+            TextWindow(i, x_delta / 2 + x_delta * j, y_delta / 2 + y_delta * k,
+                       0, labels[i].labels[idx].label);
+        }
+      }
+
+    }
+  }
+  
+  {
+    /*
     int i, j;
     Window w[16][16];
     Window w2[2][16];
@@ -183,11 +231,19 @@ int main() {
         w[i][j] = TextWindow(0, 10 + 50*i, 40 + 20 * j, 0, "ab");
       }
     }
+    */
     XSync(dpy, False);
     int x;
     scanf("%d", &x);
   }
 
+  {
+    int i;
+    for (i = 0; i < num_screens; ++i) {
+      free(labels[i].labels);
+    }
+    free(labels);
+  }
   Done();
   return 0;
 }
