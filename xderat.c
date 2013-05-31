@@ -324,6 +324,7 @@ int HandleKeyPress(XKeyEvent* ev) {
       case XK_e:
         if (ev->state & ShiftMask) {
           Ungrab();
+          drag = 2;
           done = 1;
         }
         Mouse(2, True);
@@ -331,6 +332,7 @@ int HandleKeyPress(XKeyEvent* ev) {
       case XK_r:
         if (ev->state & ShiftMask) {
           Ungrab();
+          drag = 3;
           done = 1;
         }
         Mouse(3, True);
@@ -523,10 +525,10 @@ int main() {
     }
     */
   }
-  Ungrab();
   if (drag) {
-    Mouse(1, False);
+    Mouse(drag, False);
   }
+  Ungrab();
 
   DoneWindows();
   Done();
