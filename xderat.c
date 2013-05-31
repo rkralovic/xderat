@@ -342,6 +342,10 @@ int HandleKeyPress(XKeyEvent* ev) {
         s = (s + 1) % num_screens;
         XMapWindow(dpy, labels[s].win);
         break;
+      case XK_Escape:
+        XUnmapWindow(dpy, labels[s].win);
+        pfx_idx = -1;
+      break;
       default: return 0;
     }
     pfx[pfx_idx++] = c;
@@ -414,6 +418,7 @@ int HandleKeyRelease(XKeyEvent* ev) {
       case XK_comma:
       case XK_period:
       case XK_slash:
+      case XK_Escape:
         break;
       default: return 0;
     }
