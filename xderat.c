@@ -319,6 +319,11 @@ int HandleKeyPress(XKeyEvent* ev) {
         pfx_idx = 0;
         break;
       case XK_c:
+        if (ev->state & ShiftMask) {
+          Ungrab();
+          drag = 2;
+          done = 1;
+        }
         if (!drag) Mouse(1, True);
         break;
       case XK_e:
