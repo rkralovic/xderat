@@ -7,8 +7,6 @@
 #include <X11/extensions/XTest.h>
 #include <X11/Xlib.h>
 
-#define LOG(x...) fprintf(stderr, x...)
-
 ////////////////
 // X state:
 Display* dpy;
@@ -34,8 +32,15 @@ void Init() {
   int event, error;
   if (XineramaQueryExtension(dpy, &event, &error) &&
       XineramaIsActive(dpy)) {
+    int i;
+    Screen* screen = XDefaultScreenOfDisplay(dpy);
+
     screens = XineramaQueryScreens(dpy, &num_screens);
     screens_x_allocated = 1;
+    // Xinerama returns weird screen numbers, fix.
+    for (i = 0; i < num_screens; ++i) {
+      screens[i].screen_number = XScreenNumberOfScreen(screen);
+    }
   } else {
     Screen* screen = XDefaultScreenOfDisplay(dpy);
 
@@ -160,8 +165,14 @@ void MakeTextLabel(int s, int idx, int x, int y) {
   x -= w / 2;
   y -= h / 2;
 
-  XSetForeground(dpy, labels[s].win_gc, XWhitePixel(dpy, screens[s].screen_number));
-  XSetBackground(dpy, labels[s].win_gc, XBlackPixel(dpy, screens[s].screen_number));
+  XSetForeground(dpy, labels[s].win_gc,
+                 XBlackPixel(dpy, screens[s].screen_number));
+  XSetBackground(dpy, labels[s].win_gc,
+                 XBlackPixel(dpy, screens[s].screen_number));
+  XFillRectangle(dpy, labels[s].ctx, labels[s].win_gc, x, y, w, h);
+
+  XSetForeground(dpy, labels[s].win_gc,
+                 XWhitePixel(dpy, screens[s].screen_number));
   XSetFont(dpy, labels[s].win_gc, font_id);
   XDrawImageString(dpy, labels[s].ctx, labels[s].win_gc,
                    x + border - overall.lbearing, y + border + overall.ascent,
@@ -280,6 +291,7 @@ int HandleKeyPress(XKeyEvent* ev) {
         break;
       case XK_q:
       case XK_Return:
+      case XK_Escape:
         done = 1;
         break;
       case XK_Tab:
@@ -341,11 +353,13 @@ int HandleKeyPress(XKeyEvent* ev) {
         XUnmapWindow(dpy, labels[s].win);
         s = (s + 1) % num_screens;
         XMapWindow(dpy, labels[s].win);
+        return 1;
         break;
       case XK_Escape:
         XUnmapWindow(dpy, labels[s].win);
         pfx_idx = -1;
-      break;
+        return 1;
+        break;
       default: return 0;
     }
     pfx[pfx_idx++] = c;
@@ -377,6 +391,7 @@ int HandleKeyRelease(XKeyEvent* ev) {
       case XK_l:
       case XK_q:
       case XK_Return:
+      case XK_Escape:
       case XK_m:
       case XK_d:
         break;
@@ -461,19 +476,19 @@ int main() {
         handled = 1;
         break;
       case KeyPress:
-        handled = HandleKeyPress(&ev.xkey); 
+        handled = HandleKeyPress(&ev.xkey);
         break;
       case KeyRelease:
         handled = HandleKeyRelease(&ev.xkey);
         break;
     }
+    /*
     if (!handled) {
-      /*
       printf("allow event\n");
       XAllowEvents(dpy, ReplayKeyboard, ev.xkey.time);
       XFlush(dpy);
-      */
     }
+    */
   }
   XUngrabKeyboard(dpy, CurrentTime);
 
