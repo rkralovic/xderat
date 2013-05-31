@@ -310,6 +310,12 @@ int HandleKeyPress(XKeyEvent* ev) {
       case XK_r:
         XTestFakeButtonEvent(dpy, 3, True, CurrentTime);
         break;
+      case XK_w:  // wheel up
+        XTestFakeButtonEvent(dpy, 4, True, CurrentTime);
+        break;
+      case XK_s:  // wheel down
+        XTestFakeButtonEvent(dpy, 5, True, CurrentTime);
+        break;
       case XK_d:
         if (!drag) {
           XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
@@ -403,6 +409,12 @@ int HandleKeyRelease(XKeyEvent* ev) {
         break;
       case XK_r:
         XTestFakeButtonEvent(dpy, 3, False, CurrentTime);
+        break;
+      case XK_w:  // wheel up
+        XTestFakeButtonEvent(dpy, 4, False, CurrentTime);
+        break;
+      case XK_s:  // wheel down
+        XTestFakeButtonEvent(dpy, 5, False, CurrentTime);
         break;
       default:
         return 0;
