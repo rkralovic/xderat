@@ -12,6 +12,7 @@
 Display* dpy;
 XineramaScreenInfo* screens;
 int num_screens;
+Window inp;
 
 XFontStruct* font;
 Font font_id;
@@ -265,10 +266,26 @@ int pfx_idx;
 int drag, done, s;
 
 void InitState() {
-  XMapWindow(dpy, labels[s].win);
+  XMapRaised(dpy, labels[s].win);
   pfx_idx = 0;
   done = 0;
   drag = 0;
+}
+
+void Grab() {
+  while (XGrabKeyboard(dpy, inp, False, GrabModeAsync, GrabModeAsync,
+                       CurrentTime)) {
+    usleep(10000);
+  }
+}
+
+void Ungrab() {
+  XUngrabKeyboard(dpy, CurrentTime);
+  XSync(dpy, False);
+}
+
+void Mouse(int btn, Bool down) {
+  XTestFakeButtonEvent(dpy, btn, down, CurrentTime);
 }
 
 int HandleKeyPress(XKeyEvent* ev) {
@@ -298,23 +315,31 @@ int HandleKeyPress(XKeyEvent* ev) {
         s = (s + 1) % num_screens;
         break;
       case XK_m:
-        XMapWindow(dpy, labels[s].win);
+        XMapRaised(dpy, labels[s].win);
         pfx_idx = 0;
         break;
       case XK_c:
-        if (!drag) XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
+        if (!drag) Mouse(1, True);
         break;
       case XK_e:
-        XTestFakeButtonEvent(dpy, 2, True, CurrentTime);
+        if (ev->state & ShiftMask) {
+          Ungrab();
+          done = 1;
+        }
+        Mouse(2, True);
         break;
       case XK_r:
-        XTestFakeButtonEvent(dpy, 3, True, CurrentTime);
+        if (ev->state & ShiftMask) {
+          Ungrab();
+          done = 1;
+        }
+        Mouse(3, True);
         break;
       case XK_w:  // wheel up
-        XTestFakeButtonEvent(dpy, 4, True, CurrentTime);
+        Mouse(4, True);
         break;
       case XK_s:  // wheel down
-        XTestFakeButtonEvent(dpy, 5, True, CurrentTime);
+        Mouse(5, True);
         break;
       case XK_d:
         if (!drag) {
@@ -358,7 +383,7 @@ int HandleKeyPress(XKeyEvent* ev) {
       case XK_Tab:
         XUnmapWindow(dpy, labels[s].win);
         s = (s + 1) % num_screens;
-        XMapWindow(dpy, labels[s].win);
+        XMapRaised(dpy, labels[s].win);
         return 1;
         break;
       case XK_Escape:
@@ -402,19 +427,19 @@ int HandleKeyRelease(XKeyEvent* ev) {
       case XK_d:
         break;
       case XK_c:
-        if (!drag) XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
+        if (!drag) Mouse(1, False);
         break;
       case XK_e:
-        XTestFakeButtonEvent(dpy, 2, False, CurrentTime);
+        Mouse(2, False);
         break;
       case XK_r:
-        XTestFakeButtonEvent(dpy, 3, False, CurrentTime);
+        Mouse(3, False);
         break;
       case XK_w:  // wheel up
-        XTestFakeButtonEvent(dpy, 4, False, CurrentTime);
+        Mouse(4, False);
         break;
       case XK_s:  // wheel down
-        XTestFakeButtonEvent(dpy, 5, False, CurrentTime);
+        Mouse(5, False);
         break;
       default:
         return 0;
@@ -455,7 +480,6 @@ int HandleKeyRelease(XKeyEvent* ev) {
 
 int main() {
   int i;
-  Window inp;
 
   Init();
   InitWindows();
@@ -463,17 +487,14 @@ int main() {
   s = FindScreen();
   inp = UnmanagedWindow(s, 0, 0, 1, 1);
   XSelectInput(dpy, inp, KeyPressMask);
-  XMapWindow(dpy, inp);
+  XMapRaised(dpy, inp);
 
   for (i = 0; i < num_screens; ++i) {
     XSelectInput(dpy, labels[i].win, ExposureMask);
   }
 
   InitState(s);
-
-  while (XGrabKeyboard(dpy, inp, False, GrabModeAsync, GrabModeAsync, CurrentTime)) {
-    usleep(10000);
-  }
+  Grab();
 
   while (!done) {
     XEvent ev;
@@ -502,7 +523,10 @@ int main() {
     }
     */
   }
-  XUngrabKeyboard(dpy, CurrentTime);
+  Ungrab();
+  if (drag) {
+    Mouse(1, False);
+  }
 
   DoneWindows();
   Done();
