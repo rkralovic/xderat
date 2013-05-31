@@ -251,15 +251,16 @@ int FindScreen() {
 //
 char pfx[LABEL_LEN + 1];
 int pfx_idx;
-int done;
+int drag, done, s;
 
-void InitState(int s) {
+void InitState() {
   XMapWindow(dpy, labels[s].win);
   pfx_idx = 0;
   done = 0;
+  drag = 0;
 }
 
-int HandleKeyPress(int s, XKeyEvent* ev) {
+int HandleKeyPress(XKeyEvent* ev) {
   int l = 1;
   if (ev->state & ShiftMask) l = 6;
 
@@ -281,18 +282,30 @@ int HandleKeyPress(int s, XKeyEvent* ev) {
       case XK_Return:
         done = 1;
         break;
+      case XK_Tab:
+        s = (s + 1) % num_screens;
+        break;
       case XK_m:
         XMapWindow(dpy, labels[s].win);
         pfx_idx = 0;
         break;
       case XK_c:
-        XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
+        if (!drag) XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
         break;
       case XK_e:
         XTestFakeButtonEvent(dpy, 2, True, CurrentTime);
         break;
       case XK_r:
         XTestFakeButtonEvent(dpy, 3, True, CurrentTime);
+        break;
+      case XK_d:
+        if (!drag) {
+          XTestFakeButtonEvent(dpy, 1, True, CurrentTime);
+          drag = 1;
+        } else {
+          XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
+          drag = 0;
+        }
         break;
       default:
         return 0;
@@ -324,6 +337,11 @@ int HandleKeyPress(int s, XKeyEvent* ev) {
       case XK_comma:     c = ','; break;
       case XK_period:    c = '.'; break;
       case XK_slash:     c = '/'; break;
+      case XK_Tab:
+        XUnmapWindow(dpy, labels[s].win);
+        s = (s + 1) % num_screens;
+        XMapWindow(dpy, labels[s].win);
+        break;
       default: return 0;
     }
     pfx[pfx_idx++] = c;
@@ -346,7 +364,7 @@ int HandleKeyPress(int s, XKeyEvent* ev) {
   return 1;
 }
 
-int HandleKeyRelease(int s, XKeyEvent* ev) {
+int HandleKeyRelease(XKeyEvent* ev) {
   if (pfx_idx == -1) {
     switch (XLookupKeysym(ev, 0)) {
       case XK_h:
@@ -356,9 +374,10 @@ int HandleKeyRelease(int s, XKeyEvent* ev) {
       case XK_q:
       case XK_Return:
       case XK_m:
+      case XK_d:
         break;
       case XK_c:
-        XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
+        if (!drag) XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
         break;
       case XK_e:
         XTestFakeButtonEvent(dpy, 2, False, CurrentTime);
@@ -403,7 +422,7 @@ int HandleKeyRelease(int s, XKeyEvent* ev) {
 }
 
 int main() {
-  int s;
+  int i;
   Window inp;
 
   Init();
@@ -411,10 +430,12 @@ int main() {
 
   s = FindScreen();
   inp = UnmanagedWindow(s, 0, 0, 1, 1);
-
   XSelectInput(dpy, inp, KeyPressMask);
-  XSelectInput(dpy, labels[s].win, ExposureMask);
   XMapWindow(dpy, inp);
+
+  for (i = 0; i < num_screens; ++i) {
+    XSelectInput(dpy, labels[i].win, ExposureMask);
+  }
 
   InitState(s);
 
@@ -435,10 +456,10 @@ int main() {
         handled = 1;
         break;
       case KeyPress:
-        handled = HandleKeyPress(s, &ev.xkey); 
+        handled = HandleKeyPress(&ev.xkey); 
         break;
       case KeyRelease:
-        handled = HandleKeyRelease(s, &ev.xkey);
+        handled = HandleKeyRelease(&ev.xkey);
         break;
     }
     if (!handled) {
