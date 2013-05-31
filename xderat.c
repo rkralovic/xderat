@@ -182,7 +182,7 @@ void MakeTextLabel(int s, int idx, int x, int y) {
   labels[s].labels[idx].x1 = x;
   labels[s].labels[idx].y1 = y;
   labels[s].labels[idx].x2 = x + w;
-  labels[s].labels[idx].y2 = y + w;
+  labels[s].labels[idx].y2 = y + h;
 
   XSetForeground(dpy, labels[s].shape_gc, 1);
   XFillRectangle(dpy, labels[s].shape, labels[s].shape_gc, x, y, w, h);
