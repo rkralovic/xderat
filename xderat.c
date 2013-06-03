@@ -364,6 +364,8 @@ int HandleKeyPress(XKeyEvent* ev) {
         break;
       case XK_Tab:
         s = (s + 1) % num_screens;
+        DoneStatusWin();
+        InitStatusWin();
         break;
       case XK_m:
         XMapRaised(dpy, labels[s].win);
@@ -442,8 +444,10 @@ int HandleKeyPress(XKeyEvent* ev) {
       case XK_period:    c = '.'; break;
       case XK_slash:     c = '/'; break;
       case XK_Tab:
+        DoneStatusWin();
         XUnmapWindow(dpy, labels[s].win);
         s = (s + 1) % num_screens;
+        InitStatusWin();
         XMapRaised(dpy, labels[s].win);
         return 1;
         break;
