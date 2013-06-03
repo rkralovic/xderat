@@ -273,6 +273,18 @@ struct StatusWin {
   int w, h, border;
 } inp;
 
+void Grab() {
+  while (XGrabKeyboard(dpy, inp.win, False, GrabModeAsync, GrabModeAsync,
+                       CurrentTime)) {
+    usleep(10000);
+  }
+}
+
+void Ungrab() {
+  XUngrabKeyboard(dpy, CurrentTime);
+  XSync(dpy, False);
+}
+
 void InitStatusWin() {
   int dir, asc, desc;
   XCharStruct overall;
@@ -284,7 +296,9 @@ void InitStatusWin() {
 
   inp.win = UnmanagedWindow(s, 0, 0, inp.w, inp.h);
   inp.gc = XCreateGC(dpy, inp.win, 0, NULL);
+  XSelectInput(dpy, inp.win, KeyPressMask | ExposureMask);
   XMapRaised(dpy, inp.win);
+  Grab();
 }
 
 void DrawStatusWin() {
@@ -311,6 +325,7 @@ void DrawStatusWin() {
 }
 
 void DoneStatusWin() {
+  Ungrab();
   XFreeGC(dpy, inp.gc);
   XDestroyWindow(dpy, inp.win);
 }
@@ -321,18 +336,6 @@ void InitState() {
   pfx_idx = 0;
   done = 0;
   drag = 0;
-}
-
-void Grab() {
-  while (XGrabKeyboard(dpy, inp.win, False, GrabModeAsync, GrabModeAsync,
-                       CurrentTime)) {
-    usleep(10000);
-  }
-}
-
-void Ungrab() {
-  XUngrabKeyboard(dpy, CurrentTime);
-  XSync(dpy, False);
 }
 
 void Mouse(int btn, Bool down) {
@@ -550,14 +553,12 @@ int main() {
   InitWindows();
   s = FindScreen();
   InitStatusWin();
-  XSelectInput(dpy, inp.win, KeyPressMask | ExposureMask);
 
   for (i = 0; i < num_screens; ++i) {
     XSelectInput(dpy, labels[i].win, ExposureMask);
   }
 
   InitState(s);
-  Grab();
 
   while (!done) {
     XEvent ev;
@@ -584,8 +585,8 @@ int main() {
   if (drag) {
     Mouse(drag, False);
   }
-  Ungrab();
 
+  DoneStatusWin();
   DoneWindows();
   Done();
   return 0;
