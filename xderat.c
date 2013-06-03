@@ -556,7 +556,6 @@ int main() {
   while (!done) {
     XEvent ev;
     XNextEvent(dpy, &ev);
-    int handled = 0;
     switch (ev.type) {
       case Expose:
         if (ev.xexpose.window == inp.win) {
@@ -567,22 +566,14 @@ int main() {
           XShapeCombineMask(dpy, labels[s].win, ShapeBounding, 0, 0,
                             labels[s].shape, ShapeSet);
         }
-        handled = 1;
         break;
       case KeyPress:
-        handled = HandleKeyPress(&ev.xkey);
+        HandleKeyPress(&ev.xkey);
         break;
       case KeyRelease:
-        handled = HandleKeyRelease(&ev.xkey);
+        HandleKeyRelease(&ev.xkey);
         break;
     }
-    /*
-    if (!handled) {
-      printf("allow event\n");
-      XAllowEvents(dpy, ReplayKeyboard, ev.xkey.time);
-      XFlush(dpy);
-    }
-    */
   }
   if (drag) {
     Mouse(drag, False);
