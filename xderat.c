@@ -12,13 +12,17 @@
 Display* dpy;
 XineramaScreenInfo* screens;
 int num_screens;
-Window inp;
 
 XFontStruct* font;
 Font font_id;
 
 const char* font_name = "terminus-14";
 #define LABEL_LEN 3
+
+// global state
+char pfx[LABEL_LEN + 1];
+int pfx_idx;
+int drag, done, s;
 
 // private
 int screens_x_allocated;
@@ -261,10 +265,55 @@ int FindScreen() {
 }
 
 //
-char pfx[LABEL_LEN + 1];
-int pfx_idx;
-int drag, done, s;
+struct StatusWin {
+  Window win;
+  GC gc;
+  int w, h, border;
+} inp;
 
+void InitStatusWin() {
+  int dir, asc, desc;
+  XCharStruct overall;
+
+  XTextExtents(font, "X", 1, &dir, &asc, &desc, &overall);
+  inp.border = 4;
+  inp.w = overall.rbearing - overall.lbearing + 2*inp.border;
+  inp.h = overall.ascent + overall.descent + 2*inp.border;
+
+  inp.win = UnmanagedWindow(s, 0, 0, inp.w, inp.h);
+  inp.gc = XCreateGC(dpy, inp.win, 0, NULL);
+  XMapRaised(dpy, inp.win);
+}
+
+void DrawStatusWin() {
+  int dir, asc, desc, w, x, y;
+  XCharStruct overall;
+  char str[8];
+  
+  if (drag) strcpy(str, "D");
+  else strcpy(str, "M");
+
+  XTextExtents(font, str, strlen(str), &dir, &asc, &desc, &overall);
+  w = overall.rbearing - overall.lbearing;
+
+  x = (inp.w - w) / 2;
+  y = inp.border + overall.ascent;
+
+  XSetForeground(dpy, inp.gc, XBlackPixel(dpy, screens[s].screen_number));
+  XSetBackground(dpy, inp.gc, XBlackPixel(dpy, screens[s].screen_number));
+  XFillRectangle(dpy, inp.win, inp.gc, 0, 0, inp.w, inp.h);
+
+  XSetForeground(dpy, inp.gc, XWhitePixel(dpy, screens[s].screen_number));
+  XSetFont(dpy, inp.gc, font_id);
+  XDrawImageString(dpy, inp.win, inp.gc, x, y, str, strlen(str));
+}
+
+void DoneStatusWin() {
+  XFreeGC(dpy, inp.gc);
+  XDestroyWindow(dpy, inp.win);
+}
+
+//
 void InitState() {
   XMapRaised(dpy, labels[s].win);
   pfx_idx = 0;
@@ -273,7 +322,7 @@ void InitState() {
 }
 
 void Grab() {
-  while (XGrabKeyboard(dpy, inp, False, GrabModeAsync, GrabModeAsync,
+  while (XGrabKeyboard(dpy, inp.win, False, GrabModeAsync, GrabModeAsync,
                        CurrentTime)) {
     usleep(10000);
   }
@@ -358,6 +407,7 @@ int HandleKeyPress(XKeyEvent* ev) {
           XTestFakeButtonEvent(dpy, 1, False, CurrentTime);
           drag = 0;
         }
+        DrawStatusWin();
         break;
       default:
         return 0;
@@ -492,11 +542,9 @@ int main() {
 
   Init();
   InitWindows();
-
   s = FindScreen();
-  inp = UnmanagedWindow(s, 0, 0, 1, 1);
-  XSelectInput(dpy, inp, KeyPressMask);
-  XMapRaised(dpy, inp);
+  InitStatusWin();
+  XSelectInput(dpy, inp.win, KeyPressMask | ExposureMask);
 
   for (i = 0; i < num_screens; ++i) {
     XSelectInput(dpy, labels[i].win, ExposureMask);
@@ -511,10 +559,14 @@ int main() {
     int handled = 0;
     switch (ev.type) {
       case Expose:
-        XCopyArea(dpy, labels[s].ctx, labels[s].win, labels[s].win_gc,
-                  0, 0, screens[s].width, screens[s].height, 0, 0);
-        XShapeCombineMask(dpy, labels[s].win, ShapeBounding, 0, 0,
-                          labels[s].shape, ShapeSet);
+        if (ev.xexpose.window == inp.win) {
+          DrawStatusWin();
+        } else {
+          XCopyArea(dpy, labels[s].ctx, labels[s].win, labels[s].win_gc,
+                    0, 0, screens[s].width, screens[s].height, 0, 0);
+          XShapeCombineMask(dpy, labels[s].win, ShapeBounding, 0, 0,
+                            labels[s].shape, ShapeSet);
+        }
         handled = 1;
         break;
       case KeyPress:
