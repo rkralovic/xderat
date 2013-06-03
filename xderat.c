@@ -7,6 +7,14 @@
 #include <X11/extensions/XTest.h>
 #include <X11/Xlib.h>
 
+const char* font_name = "terminus-14";
+#define LABEL_LEN 3
+
+// global state
+char pfx[LABEL_LEN + 1];
+int pfx_idx;
+int drag, done, s;
+
 ////////////////
 // X state:
 Display* dpy;
@@ -15,14 +23,6 @@ int num_screens;
 
 XFontStruct* font;
 Font font_id;
-
-const char* font_name = "terminus-14";
-#define LABEL_LEN 3
-
-// global state
-char pfx[LABEL_LEN + 1];
-int pfx_idx;
-int drag, done, s;
 
 // private
 int screens_x_allocated;
@@ -80,6 +80,7 @@ void Done() {
   XCloseDisplay(dpy);
 }
 
+///// Key layout
 // 2 hands, 3 rows, 4 columns
 const char Keys[24] = "qwerasdfzxcvuiopjkl;m,./";
 int InvKeys[256];
@@ -144,6 +145,7 @@ Window UnmanagedWindow(int s, int x, int y, int w, int h) {
                        valuemask, &attr);
 }
 
+///// Screen labels
 struct label {
   int x1, y1, x2, y2;
   char str[LABEL_LEN + 1];
@@ -264,7 +266,7 @@ int FindScreen() {
   return 0;
 }
 
-//
+///// Status window
 struct StatusWin {
   Window win;
   GC gc;
@@ -313,7 +315,7 @@ void DoneStatusWin() {
   XDestroyWindow(dpy, inp.win);
 }
 
-//
+///// Global state and event handling
 void InitState() {
   XMapRaised(dpy, labels[s].win);
   pfx_idx = 0;
