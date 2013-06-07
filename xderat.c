@@ -10,6 +10,9 @@
 const char* font_name = "terminus-14";
 #define LABEL_LEN 3
 
+// flag settings
+int oneshot = 0;
+
 // global state
 char pfx[LABEL_LEN + 1];
 int pfx_idx;
@@ -479,6 +482,12 @@ int HandleKeyPress(XKeyEvent* ev) {
       pfx_idx = -1;
       XWarpPointer(dpy, None, labels[s].win, 0, 0, 0, 0, x, y);
       XUnmapWindow(dpy, labels[s].win);
+      if (oneshot) {
+        Ungrab();
+        drag = 1;
+        done = 1;
+        Mouse(1, True);
+      }
     }
   }
   return 1;
@@ -549,8 +558,12 @@ int HandleKeyRelease(XKeyEvent* ev) {
   return 1;
 }
 
-int main() {
+int main(int argc, char** argv) {
   int i;
+
+  for (i = 1; i < argc; ++i) {
+    if (!strcmp(argv[i], "-s")) oneshot = 1;
+  }
 
   Init();
   InitWindows();
