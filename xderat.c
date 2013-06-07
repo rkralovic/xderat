@@ -274,13 +274,16 @@ struct StatusWin {
 } inp;
 
 void Grab() {
+  fprintf(stderr, "xderat: trying to grab\n");
   while (XGrabKeyboard(dpy, inp.win, False, GrabModeAsync, GrabModeAsync,
                        CurrentTime)) {
     usleep(10000);
   }
+  fprintf(stderr, "xderat: grab succesfull\n");
 }
 
 void Ungrab() {
+  fprintf(stderr, "xderat: releasing grab\n");
   XUngrabKeyboard(dpy, CurrentTime);
   XSync(dpy, False);
 }
@@ -573,6 +576,7 @@ int main() {
           XShapeCombineMask(dpy, labels[s].win, ShapeBounding, 0, 0,
                             labels[s].shape, ShapeSet);
         }
+      case NoExpose:
         break;
       case KeyPress:
         HandleKeyPress(&ev.xkey);
@@ -580,6 +584,8 @@ int main() {
       case KeyRelease:
         HandleKeyRelease(&ev.xkey);
         break;
+      default:
+        fprintf(stderr, "xderat: unhandled event %d\n", ev.type);
     }
   }
   if (drag) {
