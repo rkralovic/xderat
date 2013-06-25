@@ -465,6 +465,10 @@ int HandleKeyPress(XKeyEvent* ev) {
         pfx_idx = -1;
         return 1;
         break;
+      case XK_BackSpace:
+        pfx_idx--;
+        return 1;
+        break;
       default: return 0;
     }
     pfx[pfx_idx++] = c;
@@ -550,7 +554,9 @@ int HandleKeyRelease(XKeyEvent* ev) {
       case XK_comma:
       case XK_period:
       case XK_slash:
+      case XK_Tab:
       case XK_Escape:
+      case XK_BackSpace:
         break;
       default: return 0;
     }
