@@ -1,0 +1,29 @@
+A simple utility for controlling mouse via keyboard. You can call it from a
+window manager key shortcut, e.g., in xmonad, you can use:
+
+----
+   , ((mod1Mask , xK_m                    ), spawn "xderat")
+----
+
+There are two modes:
+
+* Jump mode: Screen is covered by 3letter codes; typing a code moves
+  pointer to the position of the code. This mode is initially activated.
+  You can exit it by typing the complete code, pressing escape. Pressing
+  backspace undo the last typed letter, when no letter is typed, backspace
+  exits the mode as well.
+
+* Normal mode: You can move the pointer by h,j,k,l keys (vi-like) or
+  H,J,K,L (moving faster). Other commands:
+  c: left click
+  r: right click
+  e: middle click
+  d: activate/deactivate drag mode: left click, but do not release until
+     deactivated.
+  w: wheel up
+  s: wheel down
+  esc, q, enter: exit
+
+Other keys working in both modes:
+  tab: cycle between xinerama screens
+
