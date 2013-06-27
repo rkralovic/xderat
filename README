@@ -18,11 +18,13 @@ There are two modes:
   c: left click
   r: right click
   e: middle click
+  C, R, E: release keyboard grab, click, and exit
   d: activate/deactivate drag mode: left click, but do not release until
      deactivated.
   w: wheel up
   s: wheel down
   esc, q, enter: exit
+
 
 Other keys working in both modes:
   tab: cycle between xinerama screens
