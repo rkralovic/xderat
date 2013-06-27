@@ -277,10 +277,18 @@ struct StatusWin {
 } inp;
 
 void Grab() {
+  static const int kMaxSleep = 20;  // 200ms
+  int i;
+
   fprintf(stderr, "xderat: trying to grab\n");
-  while (XGrabKeyboard(dpy, inp.win, False, GrabModeAsync, GrabModeAsync,
-                       CurrentTime)) {
+  for (i = 0; i < kMaxSleep; ++i) {
+    if (!XGrabKeyboard(dpy, inp.win, False, GrabModeAsync, GrabModeAsync,
+                       CurrentTime)) break;
     usleep(10000);
+  }
+  if (i == kMaxSleep) {
+    fprintf(stderr, "xderat: cannot grab!\n");
+    exit(1);
   }
   fprintf(stderr, "xderat: grab succesfull\n");
 }
@@ -311,7 +319,7 @@ void DrawStatusWin() {
   int dir, asc, desc, w, x, y;
   XCharStruct overall;
   char str[8];
-  
+
   if (drag) strcpy(str, "D");
   else strcpy(str, "M");
 
