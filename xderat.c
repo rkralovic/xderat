@@ -345,9 +345,13 @@ void DoneStatusWin() {
 }
 
 ///// Global state and event handling
-void InitState() {
-  XMapRaised(dpy, labels[s].win);
-  pfx_idx = 0;
+void InitState(int s, int start_nav) {
+  if (start_nav) {
+    XMapRaised(dpy, labels[s].win);
+    pfx_idx = 0;
+  } else {
+    pfx_idx = -1;
+  }
   done = 0;
   drag = 0;
 }
@@ -573,10 +577,11 @@ int HandleKeyRelease(XKeyEvent* ev) {
 }
 
 int main(int argc, char** argv) {
-  int i;
+  int i, start_nav = 1;
 
   for (i = 1; i < argc; ++i) {
     if (!strcmp(argv[i], "-s")) oneshot = 1;
+    if (!strcmp(argv[i], "-nonav")) start_nav = 0;
   }
 
   Init();
@@ -588,7 +593,7 @@ int main(int argc, char** argv) {
     XSelectInput(dpy, labels[i].win, ExposureMask);
   }
 
-  InitState(s);
+  InitState(s, start_nav);
 
   while (!done) {
     XEvent ev;
