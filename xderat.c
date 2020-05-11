@@ -8,7 +8,7 @@
 #include <X11/Xlib.h>
 
 const char* font_name = "terminus-14";
-#define LABEL_LEN 3
+#define LABEL_LEN 4
 
 // flag settings
 int oneshot = 0;
