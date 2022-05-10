@@ -434,6 +434,10 @@ int HandleKeyPress(XKeyEvent* ev) {
         }
         DrawStatusWin();
         break;
+      case XK_Shift_L:
+      case XK_Shift_R:
+        // This is likely not completely correct check for shift keypress.
+        break;
       default:
         return 0;
     }
@@ -611,7 +615,11 @@ int main(int argc, char** argv) {
       case NoExpose:
         break;
       case KeyPress:
-        HandleKeyPress(&ev.xkey);
+        if (!HandleKeyPress(&ev.xkey)) {
+          // Workaround for window manager weirdness: XMonad gets confused when
+          // we have the grab.
+          done = 1;
+        }
         break;
       case KeyRelease:
         HandleKeyRelease(&ev.xkey);
